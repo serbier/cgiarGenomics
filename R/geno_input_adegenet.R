@@ -268,7 +268,6 @@ read_vcf <- function(path, ploidity = 2, na_reps = c("-", "./."), sep="/") {
   mt_gt_str <- matrix(gsub(sep, "", mt), nrow = dim(mt)[1], ncol = dim(mt)[2])
   gc_len <- purrr::map_int(mt_gt_str, function(x){max(nchar(x))})
   max_dosage <- max(gc_len, na.rm = TRUE)
-  
   if(max_dosage < ploidity){
     cli::cli_warn("Max dosage ({max_dosage}) lower than ploidy lvl ({ploidity})")
   }
@@ -279,7 +278,7 @@ read_vcf <- function(path, ploidity = 2, na_reps = c("-", "./."), sep="/") {
   
   individuals <- rownames(mt)
   
-  allele_set <- paste(meta$ref[!meta$filter], meta$alt[!meta$filter], sep=sep)
+  allele_set <- paste(meta$ref[!meta$filter], meta$alt[!meta$filter], sep="/")
 
   gt <- mapply(function(col, arg, ploidity, sep) get_allelic_dosage(mt[,col], arg,ploidity, sep),
                col = seq(1,dim(mt)[2]), 
@@ -287,6 +286,7 @@ read_vcf <- function(path, ploidity = 2, na_reps = c("-", "./."), sep="/") {
                ploidity = ploidity,
                sep = sep)
   
+  browser()
   gl <- new("genlight",
             gt,
             ploidy = ploidity,

@@ -378,5 +378,87 @@ get_accuracy <- function(ref_gl, imp_gl){
   return(accuracy)
 }
 
-
-
+#' Impute missing genotypes using Beagle
+#'
+#' This function converts a genlight object to a VCF file, runs Beagle for imputation using the specified JRE,
+#' reads the imputed VCF back, and returns the imputed genlight object.
+#'
+#' @param gl A genlight object of exclusively diploid ploidity level.
+#' @param jre_path String. Path to the Java JRE directory.
+#' @param beagle_path String. Path to the Beagle JAR file.
+#' @param memory String. Allowed memory for JVM. Default is "Xmx1g".
+#' @param burnin Integer. Number of burn-in iterations. Default is 3.
+#' @param iterations Integer. Number of phasing iterations. Default is 12.
+#' @param seed Integer. Seed for the random number generator. Default is -99999.
+#' @param nthreads Integer. Number of threads to use. Default is 16.
+#'
+#' @return A genlight object with imputed genotypes.
+#' @export
+impute_beagle <- function(gl, jre_path, beagle_path, memory = "Xmx1g",
+                          burnin = 3, iterations = 12, seed = -99999, nthreads = 16) {
+  
+  if (!inherits(gl, "genlight")) {
+    cli::cli_abort("`gl` must be a genlight object.")
+  }
+  
+  p_ind <- adegenet::ploidy(gl)
+  if (any(p_ind != 2)) {
+    cli::cli_abort("The genlight object must be exclusively diploid.")
+  }
+  
+  if (!file.exists(beagle_path)) {
+    cli::cli_abort("`beagle_path` does not exist: {beagle_path}")
+  }
+  
+  java_exe <- file.path(jre_path, "bin", "java")
+  if (.Platform$OS.type == "windows") {
+    java_exe <- paste0(java_exe, ".exe")
+  }
+  if (!file.exists(java_exe)) {
+    if (file.exists(jre_path) && file.info(jre_path)$isdir == FALSE) {
+      java_exe <- jre_path
+    } else {
+      cli::cli_abort("Could not find java executable at {java_exe} or {jre_path}")
+    }
+  }
+  
+  if (!startsWith(memory, "-")) {
+    memory <- paste0("-", memory)
+  }
+  
+  input_vcf <- tempfile(pattern = "beagle_in_", fileext = ".vcf.gz")
+  out_prefix <- tempfile(pattern = "beagle_out_")
+  output_vcf <- paste0(out_prefix, ".vcf.gz")
+  output_log <- paste0(out_prefix, ".log")
+  
+  on.exit({
+    if (file.exists(input_vcf)) unlink(input_vcf)
+    if (file.exists(output_vcf)) unlink(output_vcf)
+    if (file.exists(output_log)) unlink(output_log)
+  }, add = TRUE)
+  
+  # Convert the gl to a vcf using write_vcf (located in utils.R)
+  write_vcf(gl, input_vcf, na_rep = "./.")
+  
+  # Construct Beagle command using sprintf
+  cmd <- sprintf('"%s" %s -jar "%s" gt="%s" out="%s" burnin=%d iterations=%d seed=%d nthreads=%d',
+                 java_exe, memory, beagle_path, input_vcf, out_prefix,
+                 burnin, iterations, seed, nthreads)
+  
+  cli::cli_inform("Executing command: {cmd}")
+  
+  # Execute call
+  status <- system(cmd)
+  if (status != 0) {
+    cli::cli_abort("Beagle execution failed with exit status {status}")
+  }
+  
+  if (!file.exists(output_vcf)) {
+    cli::cli_abort("Expected Beagle output VCF file not found at {output_vcf}")
+  }
+  
+  # Read back with cgiarGenomics read_vcf
+  imputed_gl <- read_vcf(output_vcf, ploidity = 2, na_reps = ".\\|.", sep = "\\|")
+  
+  return(imputed_gl)
+}

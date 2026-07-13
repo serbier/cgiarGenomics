@@ -128,7 +128,7 @@ process_metadata <- function(geno_metadata){
 #' allele_counts <- c(A = 10, G = 20)
 #' get_allelic_dosage(genotypes, allele_counts, 2)  # Returns list(1, NA, 0)
 get_allelic_dosage <- function(l, alleles, ploidity, sep = "") {
-  alleles_c <- unlist(stringr::str_split(alleles, "/"))
+  alleles_c <- unlist(stringr::str_split(alleles, sep))
   # All possible genotype calls
   possible_gt_calls <- get_all_gt_calls(alleles_c, ploidity, sep)
   # Get dosage given the alternative allele

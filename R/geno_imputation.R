@@ -104,23 +104,22 @@ i_rf_impute <- function(target, predictors, ntree = 100, seed = NULL) {
     ntree = ntree,
     na.action = na.omit
   )
-  
   # For prediction, use only samples where predictors are complete
   # (missing predictor values prevent accurate predictions)
   pred_idx_complete <- which(complete.cases(predictors[miss_idx, , drop = FALSE]))
   
-  if (length(pred_idx_complete) > 0) {
+  if (length(miss_idx) > 0) {
     # Predict for samples with complete predictor data
-    predictors_miss_complete <- predictors[miss_idx[pred_idx_complete], , drop = FALSE]
+    predictors_miss_complete <- predictors[miss_idx, , drop = FALSE]
     predictions <- stats::predict(rf_model, newdata = predictors_miss_complete)
     
     # Round predictions to nearest integer (genotype call)
     predictions <- round(predictions)
     
     # Assign predictions only to positions with complete predictors
-    target[miss_idx[pred_idx_complete]] <- predictions
+    target[miss_idx] <- predictions
   }
-  
+  browser()
   return(target)
 }
 
@@ -138,6 +137,10 @@ i_rf_impute <- function(target, predictors, ntree = 100, seed = NULL) {
 #' @return List where names are dosage values and elements are linear indices of NA positions
 #' @keywords internal
 rf_impute <- function(gl, nflank = 100, ntree = 100, seed = NULL) {
+  # impute with frequency to get a filled predictors matrix
+  pred_gl <- as.matrix(impute_gl(gl, ploidity, method = "frequency")$gl)
+  
+  
   mt <- as.matrix(gl)
   n_markers <- nrow(mt)
   n_samples <- ncol(mt)
@@ -151,7 +154,7 @@ rf_impute <- function(gl, nflank = 100, ntree = 100, seed = NULL) {
   # Process each marker
   for (i_marker in seq_len(n_markers)) {
     # Check if marker has missing data
-    target <- mt[i_marker, ]
+    target <- mt[, i_marker]
     n_missing <- sum(is.na(target))
     
     if (n_missing == 0) {
@@ -216,11 +219,10 @@ rf_impute <- function(gl, nflank = 100, ntree = 100, seed = NULL) {
     
     # Get predictor markers
     if (length(flank_idx) > 0) {
-      predictors <- t(mt[flank_idx, ])
+      predictors <- pred_gl[ ,flank_idx]
     } else {
       predictors <- matrix(numeric(0), nrow = n_samples, ncol = 0)
     }
-    
     # Impute using RF
     imputed_target <- i_rf_impute(
       target = target,

@@ -18,7 +18,7 @@ filt_seq <- lapply(filtering_steps, function(x){
 
 # Load Hapmap file
 gl <- read_hapmap(path = input_file,
-            ploidity = ploidity_lvl)
+            ploidity = ploidity_lvl, sep = "")
 # Filtering gl
 filt_gl <- apply_sequence_filtering(gl, filt_seq)
 

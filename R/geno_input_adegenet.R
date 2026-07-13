@@ -127,7 +127,7 @@ read_genolcsv <- function(path,
 #' read_hapmap("path/to/hapmap/file.txt")
 #' read_hapmap("path/to/hapmap/file.txt", ploidity = 4)
 #' read_hapmap("path/to/hapmap/file.txt", sep = "|")
-read_hapmap <- function(path, ploidity = 2, sep = c("","/","|")) {
+read_hapmap <- function(path, ploidity = 2, sep = "") {
   # Validate arguments
   if (!file.exists(path)){
     cli::cli_abort("`path` don't exist. Verify if is writed properly {path}")
@@ -135,7 +135,10 @@ read_hapmap <- function(path, ploidity = 2, sep = c("","/","|")) {
   if (!rlang::is_integerish(ploidity)) {
     cli::cli_abort("`ploidity` must be a round number not {ploidity}")
   }
-  sep = match.arg(sep)
+  
+  if (!sep %in% c("", "/", "|")) {
+    stop("sep must be '', '/', or '|'")
+  }
   
   
   # Read the genotype data from the tabular file
@@ -286,7 +289,6 @@ read_vcf <- function(path, ploidity = 2, na_reps = c("-", "./."), sep="/") {
                ploidity = ploidity,
                sep = sep)
   
-  browser()
   gl <- new("genlight",
             gt,
             ploidy = ploidity,

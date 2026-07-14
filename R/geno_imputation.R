@@ -119,7 +119,6 @@ i_rf_impute <- function(target, predictors, ntree = 100, seed = NULL) {
     # Assign predictions only to positions with complete predictors
     target[miss_idx] <- predictions
   }
-  browser()
   return(target)
 }
 
@@ -136,10 +135,11 @@ i_rf_impute <- function(target, predictors, ntree = 100, seed = NULL) {
 #'
 #' @return List where names are dosage values and elements are linear indices of NA positions
 #' @keywords internal
-rf_impute <- function(gl, nflank = 100, ntree = 100, seed = NULL) {
-  # impute with frequency to get a filled predictors matrix
-  pred_gl <- as.matrix(impute_gl(gl, ploidity, method = "frequency")$gl)
+rf_impute <- function(gl, ploidity = 2, nflank = 100, ntree = 100, seed = NULL) {
   
+  # impute with frequency to get a filled predictors matrix
+  pred_gl <- impute_gl(gl, ploidity, method = "frequency")$gl
+  pred_mt <- as.matrix(pred_gl)
   
   mt <- as.matrix(gl)
   n_markers <- nrow(mt)
@@ -219,7 +219,7 @@ rf_impute <- function(gl, nflank = 100, ntree = 100, seed = NULL) {
     
     # Get predictor markers
     if (length(flank_idx) > 0) {
-      predictors <- pred_gl[ ,flank_idx]
+      predictors <- pred_mt[ ,flank_idx]
     } else {
       predictors <- matrix(numeric(0), nrow = n_samples, ncol = 0)
     }
@@ -232,7 +232,7 @@ rf_impute <- function(gl, nflank = 100, ntree = 100, seed = NULL) {
     )
     
     # Update matrix with imputed values
-    mt[i_marker, ] <- imputed_target
+    mt[,i_marker] <- imputed_target
   }
   
   # Build imputation dictionary: group by imputed dosage values

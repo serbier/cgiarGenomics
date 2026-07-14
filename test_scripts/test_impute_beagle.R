@@ -4,7 +4,7 @@
 vcf_path <- "tests/vcf_fmt/diploid.vcf.gz"
 file_imputed_path <- "file40bc782a727c_imputed.vcf.gz"
 jre_path <- "C:/Program Files/Java/jre-1.8"
-beagle_path <- "./beagle.27Feb25.75f.jar"
+beagle_path <- "C:/Users/pybonacci/Documents/software/beagle.27Feb25.75f.jar"
 
 cat("Reading input VCF with read_vcf...\n")
 gl_input <- read_vcf(vcf_path, ploidity = 2, na_reps = "./.")

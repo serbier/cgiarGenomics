@@ -27,3 +27,8 @@ imp_gl <- impute_gl(filt_gl$gl,
                     ploidity = ploidity_lvl,
                     method = 'frequency')
 
+
+
+imp_gl2 <- impute_gl(filt_gl$gl,
+                    ploidity = ploidity_lvl,
+                    method = 'random_forest', nflank = 25, ntree = 100)

@@ -218,3 +218,47 @@ write_vcf <- function(gl, output_path, na_rep = "./.") {
   write.table(vcf_df, file = con, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
   close(con)
 }
+
+check_method_args <- function(dots, allowed, required, method) {
+  supplied <- names(dots)
+  
+  if (is.null(supplied)) {
+    supplied <- character()
+  }
+  
+  unnamed <- supplied == ""
+  
+  if (any(unnamed)) {
+    stop(
+      "All method-specific arguments passed through '...' must be named.",
+      call. = FALSE
+    )
+  }
+  
+  unknown <- setdiff(supplied, allowed)
+  
+  if (length(unknown) > 0) {
+    stop(
+      sprintf(
+        "Unknown argument(s) for method '%s': %s. Allowed arguments are: %s.",
+        method,
+        paste(unknown, collapse = ", "),
+        paste(allowed, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+  
+  missing_required <- setdiff(required, supplied)
+  
+  if (length(missing_required) > 0) {
+    stop(
+      sprintf(
+        "Missing required argument(s) for method '%s': %s.",
+        method,
+        paste(missing_required, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+}

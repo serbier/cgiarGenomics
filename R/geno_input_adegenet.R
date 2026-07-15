@@ -266,7 +266,6 @@ read_vcf <- function(path, ploidity = 2, na_reps = c("-", "./."), sep="/") {
     idx <- which(mt %in% na_reps)
     mt[idx] <- NA
   }
-  
   # check ploidity
   mt_gt_str <- matrix(gsub(sep, "", mt), nrow = dim(mt)[1], ncol = dim(mt)[2])
   gc_len <- purrr::map_int(mt_gt_str, function(x){max(nchar(x))})

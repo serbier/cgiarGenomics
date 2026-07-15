@@ -76,25 +76,34 @@ i_rf_impute <- function(target, predictors, ntree = 100, seed = NULL) {
   
   # If no missing data, return as-is
   if (n_miss == 0) {
-    return(target)
+    return(NA)
   }
   
   # If no predictors available, return unchanged
   if (ncol(predictors) == 0) {
-    return(target)
+    return(NA)
   }
   
   # Find indices where target is not NA AND predictors are complete (for training)
   pred_complete <- which(complete.cases(predictors))
   train_idx <- pred_complete[!is.na(target[pred_complete])]
   
+
   if (length(train_idx) < 2) {
     # Not enough training data
-    return(target)
+    return(NA)
   }
+  
   
   # Filter target and predictors to training indices
   target_train <- target[train_idx]
+  
+  
+  if (length(unique(target_train)) == 1) {
+    # Target snp to be predicted only have one allele present. Use freq impute predicition
+    return(NA)
+  }
+  
   predictors_train <- predictors[train_idx, , drop = FALSE]
   
   # Train random forest on non-missing observations
@@ -104,9 +113,7 @@ i_rf_impute <- function(target, predictors, ntree = 100, seed = NULL) {
     ntree = ntree,
     na.action = na.omit
   )
-  # For prediction, use only samples where predictors are complete
-  # (missing predictor values prevent accurate predictions)
-  pred_idx_complete <- which(complete.cases(predictors[miss_idx, , drop = FALSE]))
+
   
   if (length(miss_idx) > 0) {
     # Predict for samples with complete predictor data
@@ -114,7 +121,7 @@ i_rf_impute <- function(target, predictors, ntree = 100, seed = NULL) {
     predictions <- stats::predict(rf_model, newdata = predictors_miss_complete)
     
     # Round predictions to nearest integer (genotype call)
-    predictions <- round(predictions)
+    # predictions <- round(predictions)
     
     # Assign predictions only to positions with complete predictors
     target[miss_idx] <- predictions
@@ -142,8 +149,8 @@ rf_impute <- function(gl, ploidity = 2, nflank = 100, ntree = 100, seed = NULL) 
   pred_mt <- as.matrix(pred_gl)
   
   mt <- as.matrix(gl)
-  n_markers <- nrow(mt)
-  n_samples <- ncol(mt)
+  n_markers <- ncol(mt)
+  n_samples <- nrow(mt)
   
   # Get chromosome information for each marker
   chr <- adegenet::chromosome(gl)
@@ -225,12 +232,14 @@ rf_impute <- function(gl, ploidity = 2, nflank = 100, ntree = 100, seed = NULL) 
     }
     # Impute using RF
     imputed_target <- i_rf_impute(
-      target = target,
+      target = as.factor(unlist(target)),
       predictors = predictors,
       ntree = ntree,
       seed = seed
     )
-    
+    if(length(imputed_target) == 1){
+      imputed_target <- pred_mt[,i_marker]
+    }
     # Update matrix with imputed values
     mt[,i_marker] <- imputed_target
   }
@@ -264,7 +273,7 @@ rf_impute <- function(gl, ploidity = 2, nflank = 100, ntree = 100, seed = NULL) 
 #' @export
 #'
 #' @examples
-impute_gl <- function(gl, ploidity = 2, method = 'frequency', nflank = 100, ntree = 100, seed = NULL){
+impute_gl <- function(gl, ploidity = 2, method, ...){
   
   loci_all_nas <- adegenet::glNA(gl)/ploidity == adegenet::nInd(gl)
   
@@ -276,7 +285,8 @@ impute_gl <- function(gl, ploidity = 2, method = 'frequency', nflank = 100, ntre
     mt <- as.matrix(gl)
   }
   
-  
+  dots <- list(...)
+  print(dots)
   nas_number <- sum(adegenet::glNA(gl))/ploidity
   number_imputations <- nas_number - (sum(loci_all_nas) * adegenet::nInd(gl))
   
@@ -285,12 +295,38 @@ impute_gl <- function(gl, ploidity = 2, method = 'frequency', nflank = 100, ntre
   
   cli::cli_inform("Missing genotype calls {number_imputations}")
   
+  
+  method <- match.arg(
+    method,
+    choices = c("frequency", "random_forest", "beagle")
+  )
+  
   if(method == 'frequency'){
     imp_dict <- freq_impute(gl, mt, ploidity)
   } else if(method == 'random_forest'){
-    cli::cli_inform("Imputing with Random Forest (nflank={nflank}, ntree={ntree})")
-    imp_dict <- rf_impute(gl, nflank = nflank, ntree = ntree, seed = seed)
-  } else {
+    allowed <- c("nflank", 'ntree', 'seed')
+    check_method_args(
+      dots = dots,
+      allowed = allowed,
+      required = character(),
+      method = method
+    )
+    cli::cli_inform("Imputing with Random Forest (nflank={dots$nflank}, ntree={dots$ntree})")
+    imp_dict <- do.call(rf_impute, c(list(gl = gl,
+                                     ploidity = ploidity), dots))
+      
+  } else if(method == 'beagle'){
+    allowed <- c("jre_path", 'beagle_path', 'memory',
+                 'burnin', 'iterations', 'seed', 'nthreads')
+    check_method_args(
+      dots = dots,
+      allowed = allowed,
+      required = character(),
+      method = method
+    )
+    imp_dict <- do.call(impute_beagle, c(list(gl = gl), dots))
+  }
+  else {
     cli::cli_abort("Unknown imputation method: {method}. Use 'frequency' or 'random_forest'")
   }
   
@@ -308,7 +344,6 @@ impute_gl <- function(gl, ploidity = 2, method = 'frequency', nflank = 100, ntre
   
   adegenet::alleles(imp_gl) <- adegenet::alleles(gl)
   imp_gl <- recalc_metrics(imp_gl)
-  
   return(list(gl = imp_gl, log = imp_dict))
 }
 
@@ -460,7 +495,13 @@ impute_beagle <- function(gl, jre_path, beagle_path, memory = "Xmx1g",
   }
   
   # Read back with cgiarGenomics read_vcf
-  imputed_gl <- read_vcf(output_vcf, ploidity = 2, na_reps = ".\\|.", sep = "\\|")
+  imputed_gl <- read_vcf(output_vcf, ploidity = 2, na_reps = ".", sep = "\\|")
   
-  return(imputed_gl)
+  
+  idx_na <- which(is.na(as.matrix(gl)))
+  if (length(idx_na) > 0) {
+    imputed_values <- as.matrix(imputed_gl)[idx_na]
+    imp_dict <- split(idx_na, imputed_values)
+  }
+  return(imp_dict)
 }
